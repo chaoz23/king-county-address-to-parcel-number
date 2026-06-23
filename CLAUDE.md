@@ -1,6 +1,6 @@
-# King County Parcel Lookup
+# King County Address to Parcel Number
 
-When the user asks for a King County parcel number, PIN, or wants to identify a KC property by address, run:
+When the user has a King County address and needs the parcel number (PIN), run:
 
 ```bash
 python3 lookup.py "<address>"

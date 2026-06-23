@@ -1,6 +1,6 @@
-# King County Parcel Lookup
+# King County Address to Parcel Number
 
-Look up the parcel number (PIN) for any King County, WA property address.
+Convert a King County, WA street address to its 10-digit parcel number (PIN).
 
 ```bash
 python3 lookup.py "1817 Morris Ave S, Renton, WA 98055"
