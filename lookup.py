@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""King County address → parcel number (PIN) lookup.
+"""King County address → parcel number lookup.
 
-Uses the King County ArcGIS ParcelAddress geocoder. Returns the 10-digit PIN
-(Major 6 + Minor 4) for a residential or commercial property.
+Uses the King County ArcGIS ParcelAddress geocoder. Returns the 10-digit
+parcel number (Major 6 + Minor 4) for a residential or commercial property.
 
 Two modes, same JSON output:
   Human:  python3 lookup.py "600 Grady Way, Renton"
@@ -11,10 +11,10 @@ Two modes, same JSON output:
 Every response includes:
   action  — what a pipeline should do: "use", "pick", "refine", "reject"
   message — what a human should read
-  pin     — the answer (when action=use) or best guess (when action=pick)
+  parcel_number — the answer (when action=use) or best guess (when action=pick)
 
 Exit codes:
-  0 = exact match (action=use), safe for pipelines to consume pin
+  0 = exact match (action=use), safe for pipelines to consume parcel_number
   1 = ambiguous (action=pick/refine), candidates available
   2 = bad input (action=reject), do not retry without changing input
 """
@@ -47,7 +47,7 @@ NON_KC_HINTS = {
 
 
 def normalize_input(raw: str) -> str:
-    """Normalize the input: strip PIN prefixes, extra whitespace, etc."""
+    """Normalize the input: strip parcel number prefixes, extra whitespace, etc."""
     s = raw.strip()
     s = re.sub(r"(?i)^pin[:\s#]+", "", s)
     if re.fullmatch(r"\d{10}", s):
@@ -68,7 +68,7 @@ def check_input(address: str) -> dict | None:
         return {
             "action": "reject",
             "message": "No house number found. A street address is required, e.g. '1817 Morris Ave S, Renton, WA 98055'.",
-            "pin": None,
+            "parcel_number": None,
             "candidates": [],
         }
 
@@ -77,7 +77,7 @@ def check_input(address: str) -> dict | None:
             return {
                 "action": "reject",
                 "message": f"'{city.title()}' is in {county}, not King County. This tool only covers King County, WA.",
-                "pin": None,
+                "parcel_number": None,
                 "candidates": [],
             }
 
@@ -85,7 +85,7 @@ def check_input(address: str) -> dict | None:
         return {
             "action": "reject",
             "message": "This address doesn't appear to be in Washington state. This tool only covers King County, WA.",
-            "pin": None,
+            "parcel_number": None,
             "candidates": [],
         }
 
@@ -142,7 +142,7 @@ def find_nearby(address: str) -> list[dict]:
             distance = abs(int(a.get("ADDR_HN", 0)) - int(house_num)) if house_num else 999
             results.append({
                 "address": a.get("ADDR_FULL", ""),
-                "pin": pin,
+                "parcel_number": pin,
                 "distance": distance,
             })
 
@@ -159,13 +159,13 @@ def lookup(address: str) -> dict:
     if is_pin(normalized):
         return {
             "action": "use",
-            "pin": normalized,
+            "parcel_number": normalized,
             "major": normalized[:6],
             "minor": normalized[6:],
             "matched_address": None,
             "score": 100,
             "input": address,
-            "message": f"Input is already a PIN: {normalized}",
+            "message": f"Input is already a parcel number: {normalized}",
             "candidates": [],
         }
 
@@ -191,7 +191,7 @@ def lookup(address: str) -> dict:
     except Exception as e:
         return {
             "action": "refine",
-            "pin": None,
+            "parcel_number": None,
             "message": f"Could not reach King County geocoder: {e}",
             "candidates": [],
             "input": address,
@@ -206,13 +206,13 @@ def lookup(address: str) -> dict:
             best = nearby[0]
             return {
                 "action": "pick",
-                "pin": best["pin"],
+                "parcel_number": best["parcel_number"],
                 "matched_address": best["address"],
                 "score": None,
                 "input": address,
                 "message": (
                     f"No exact match for '{normalized}'. "
-                    f"Closest: {best['address']} (PIN {best['pin']}). "
+                    f"Closest: {best['address']} (parcel {best['parcel_number']}). "
                     "Did you mean one of these?"
                 ),
                 "suggestions": [
@@ -223,7 +223,7 @@ def lookup(address: str) -> dict:
             }
         return {
             "action": "refine",
-            "pin": None,
+            "parcel_number": None,
             "input": address,
             "message": (
                 f"No match found for '{normalized}'. "
@@ -249,13 +249,13 @@ def lookup(address: str) -> dict:
     if score >= 90 and pin and len(pin) == 10:
         return {
             "action": "use",
-            "pin": pin,
+            "parcel_number": pin,
             "major": pin[:6],
             "minor": pin[6:],
             "matched_address": matched,
             "score": score,
             "input": address,
-            "message": f"Matched: {matched} → PIN {pin}",
+            "message": f"Matched: {matched} → parcel {pin}",
             "candidates": [],
         }
 
@@ -263,7 +263,7 @@ def lookup(address: str) -> dict:
     if score >= 70 and pin and len(pin) == 10:
         return {
             "action": "pick",
-            "pin": pin,
+            "parcel_number": pin,
             "matched_address": matched,
             "score": score,
             "input": address,
@@ -271,7 +271,7 @@ def lookup(address: str) -> dict:
                 f"Best match: '{matched}' (confidence {score:.0f}%). "
                 "Verify this is the right property."
             ),
-            "candidates": [{"address": matched, "pin": pin, "score": score}],
+            "candidates": [{"address": matched, "parcel_number": pin, "score": score}],
         }
 
     # Low confidence or no PIN — gather alternatives
@@ -282,12 +282,12 @@ def lookup(address: str) -> dict:
         cm = ca.get("Match_addr", "")
         cs = c.get("score", 0)
         if cp and len(cp) == 10 and cs >= 50:
-            alts.append({"address": cm, "pin": cp, "score": cs})
+            alts.append({"address": cm, "parcel_number": cp, "score": cs})
 
     if alts:
         return {
             "action": "pick",
-            "pin": alts[0]["pin"],
+            "parcel_number": alts[0]["parcel_number"],
             "matched_address": alts[0]["address"],
             "score": alts[0]["score"],
             "input": address,
@@ -299,9 +299,9 @@ def lookup(address: str) -> dict:
     nearby = find_nearby(normalized)
     return {
         "action": "refine",
-        "pin": None,
+        "parcel_number": None,
         "input": address,
-        "message": f"Could not resolve '{normalized}' to a parcel. Geocoder returned '{matched}' but no PIN.",
+        "message": f"Could not resolve '{normalized}' to a parcel. Geocoder returned '{matched}' but no parcel number.",
         "suggestions": [
             "Check the street name and directional suffix (S, N, NE, SW)",
             "Make sure the city is in King County",

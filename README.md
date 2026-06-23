@@ -19,19 +19,19 @@ Every response has the same shape:
 ```json
 {
   "action": "use",
-  "pin": "7222000353",
+  "parcel_number": "7222000353",
   "matched_address": "1817 MORRIS AVE S, Renton, WA, 98055",
   "score": 100,
-  "message": "Matched: 1817 MORRIS AVE S → PIN 7222000353",
+  "message": "Matched: 1817 MORRIS AVE S → parcel 7222000353",
   "candidates": []
 }
 ```
 
 | Field | For | Description |
 |---|---|---|
-| `action` | Agent | `use` (take the PIN), `pick` (choose from candidates), `refine` (try different input), `reject` (bad input, don't retry) |
-| `pin` | Both | The answer (action=use) or best guess (action=pick), null otherwise |
-| `candidates` | Agent | Ranked alternatives with address, PIN, distance from input |
+| `action` | Agent | `use` (take the parcel number), `pick` (choose from candidates), `refine` (try different input), `reject` (bad input, don't retry) |
+| `parcel_number` | Both | The answer (action=use) or best guess (action=pick), null otherwise |
+| `candidates` | Agent | Ranked alternatives with address, parcel number, distance from input |
 | `message` | Human | Plain-English explanation of what happened |
 | `suggestions` | Human | What to try next when it doesn't match |
 
@@ -39,7 +39,7 @@ Every response has the same shape:
 
 | Code | Action | Pipeline behavior |
 |---|---|---|
-| 0 | `use` | Consume `pin` directly |
+| 0 | `use` | Consume `parcel_number` directly |
 | 1 | `pick` / `refine` | Candidates available — agent picks best or asks upstream |
 | 2 | `reject` | Bad input (wrong county, no house number) — don't retry |
 
