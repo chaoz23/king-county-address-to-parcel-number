@@ -78,6 +78,66 @@ def check_address_sanity(address: str) -> dict | None:
     return None
 
 
+ADDRESS_POINTS_URL = (
+    "https://gismaps.kingcounty.gov/arcgis/rest/services"
+    "/Address/KingCo_AddressPoints/MapServer/0/query"
+)
+
+
+def find_nearby_addresses(address: str) -> list[dict] | None:
+    """Search KC address points for similar addresses when geocoder fails."""
+    import re
+    parts = address.upper().replace(",", " ").split()
+
+    house_num = ""
+    street_name = ""
+    street_type = ""
+    for p in parts:
+        if p.isdigit() and not house_num:
+            house_num = p
+        elif p in ("ST", "AVE", "WAY", "DR", "PL", "CT", "BLVD", "RD", "LN", "CIR"):
+            street_type = p
+        elif len(p) >= 3 and p not in ("WA", "WAY") and p.isalpha() and not street_name:
+            street_name = p
+
+    if not street_name:
+        return None
+
+    where_parts = [f"ADDR_SN='{street_name}'"]
+    if street_type:
+        where_parts.append(f"ADDR_ST='{street_type}'")
+    if house_num:
+        low = max(0, int(house_num) - 200)
+        high = int(house_num) + 200
+        where_parts.append(f"ADDR_HN BETWEEN '{low}' AND '{high}'")
+
+    params = urllib.parse.urlencode({
+        "where": " AND ".join(where_parts),
+        "outFields": "ADDR_FULL,PIN",
+        "f": "json",
+        "resultRecordCount": 8,
+        "orderByFields": "ADDR_HN",
+    })
+
+    try:
+        url = f"{ADDRESS_POINTS_URL}?{params}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+    except Exception:
+        return None
+
+    features = data.get("features", [])
+    if not features:
+        return None
+
+    return [
+        {"address": f["attributes"]["ADDR_FULL"], "pin": f["attributes"]["PIN"]}
+        for f in features
+        if f["attributes"].get("PIN")
+    ]
+
+
 def geocode(address: str) -> dict:
     """Query the KC geocoder and return structured results."""
     params = urllib.parse.urlencode({
@@ -97,7 +157,8 @@ def geocode(address: str) -> dict:
 
     candidates = data.get("candidates", [])
     if not candidates:
-        return {
+        nearby = find_nearby_addresses(address)
+        result = {
             "status": "no_match",
             "message": (
                 f"No match found for '{address}'. Check for typos — "
@@ -110,6 +171,13 @@ def geocode(address: str) -> dict:
                 "Try the full format: '1234 Main St S, Renton, WA 98055'",
             ],
         }
+        if nearby:
+            result["nearby_addresses"] = nearby
+            result["message"] = (
+                f"No exact match for '{address}', but similar addresses exist. "
+                "Did you mean one of these?"
+            )
+        return result
 
     best = candidates[0]
     score = best.get("score", 0)
