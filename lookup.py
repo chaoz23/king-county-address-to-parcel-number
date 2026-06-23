@@ -4,11 +4,23 @@
 Uses the King County ArcGIS ParcelAddress geocoder. Returns the 10-digit PIN
 (Major 6 + Minor 4) for a residential or commercial property.
 
-Error handling returns suggestions instead of halting — designed for
-conversational use where the user can correct and retry.
+Two modes, same JSON output:
+  Human:  python3 lookup.py "600 Grady Way, Renton"
+  Agent:  python3 lookup.py --pipe "600 Grady Way, Renton"
+
+Every response includes:
+  action  — what a pipeline should do: "use", "pick", "refine", "reject"
+  message — what a human should read
+  pin     — the answer (when action=use) or best guess (when action=pick)
+
+Exit codes:
+  0 = exact match (action=use), safe for pipelines to consume pin
+  1 = ambiguous (action=pick/refine), candidates available
+  2 = bad input (action=reject), do not retry without changing input
 """
 
 import json
+import re
 import sys
 import urllib.request
 import urllib.parse
@@ -18,75 +30,70 @@ GEOCODER_URL = (
     "/Address/KingCo_ParcelAddress_locator/GeocodeServer/findAddressCandidates"
 )
 
-KING_COUNTY_CITIES = {
-    "algona", "auburn", "beaux arts village", "bellevue", "black diamond",
-    "bothell", "burien", "carnation", "clyde hill", "covington",
-    "des moines", "duvall", "enumclaw", "fall city", "federal way",
-    "hunts point", "issaquah", "kenmore", "kent", "kirkland",
-    "lake forest park", "maple valley", "medina", "mercer island",
-    "milton", "newcastle", "normandy park", "north bend", "pacific",
-    "redmond", "renton", "sammamish", "seatac", "seattle", "shoreline",
-    "skykomish", "snoqualmie", "tukwila", "woodinville", "yarrow point",
-    "vashon", "white center", "skyway", "fairwood", "east renton highlands",
-    "union hill-novelty hill", "cottage lake", "wilderness rim",
-}
-
-NON_KC_HINTS = {
-    "tacoma": "Pierce County",
-    "everett": "Snohomish County",
-    "lynnwood": "Snohomish County",
-    "olympia": "Thurston County",
-    "spokane": "Spokane County",
-    "vancouver": "Clark County",
-    "bellingham": "Whatcom County",
-    "puyallup": "Pierce County",
-    "lakewood": "Pierce County",
-    "marysville": "Snohomish County",
-    "edmonds": "Snohomish County",
-    "mountlake terrace": "Snohomish County",
-    "mukilteo": "Snohomish County",
-    "bremerton": "Kitsap County",
-}
-
-
-def check_address_sanity(address: str) -> dict | None:
-    """Pre-flight check: is this plausibly a King County address?
-
-    Returns None if OK, or a dict with suggestions if something looks off.
-    """
-    addr_lower = address.lower().strip()
-
-    if not any(c.isdigit() for c in address):
-        return {
-            "issue": "no_street_number",
-            "message": "This doesn't look like a street address (no house number). Try something like '1817 Morris Ave S, Renton, WA 98055'.",
-        }
-
-    for city, county in NON_KC_HINTS.items():
-        if city in addr_lower:
-            return {
-                "issue": "wrong_county",
-                "message": f"'{city.title()}' is in {county}, not King County. This tool only covers King County, WA.",
-            }
-
-    if any(state in addr_lower for state in [", or ", " oregon", ", ca ", " california", ", id ", " idaho"]):
-        return {
-            "issue": "wrong_state",
-            "message": "This address doesn't appear to be in Washington state. This tool only covers King County, WA.",
-        }
-
-    return None
-
-
 ADDRESS_POINTS_URL = (
     "https://gismaps.kingcounty.gov/arcgis/rest/services"
     "/Address/KingCo_AddressPoints/MapServer/0/query"
 )
 
+NON_KC_HINTS = {
+    "tacoma": "Pierce County", "everett": "Snohomish County",
+    "lynnwood": "Snohomish County", "olympia": "Thurston County",
+    "spokane": "Spokane County", "vancouver": "Clark County",
+    "bellingham": "Whatcom County", "puyallup": "Pierce County",
+    "lakewood": "Pierce County", "marysville": "Snohomish County",
+    "edmonds": "Snohomish County", "mountlake terrace": "Snohomish County",
+    "mukilteo": "Snohomish County", "bremerton": "Kitsap County",
+}
 
-def find_nearby_addresses(address: str) -> list[dict] | None:
-    """Search KC address points for similar addresses when geocoder fails."""
-    import re
+
+def normalize_input(raw: str) -> str:
+    """Normalize the input: strip PIN prefixes, extra whitespace, etc."""
+    s = raw.strip()
+    s = re.sub(r"(?i)^pin[:\s#]+", "", s)
+    if re.fullmatch(r"\d{10}", s):
+        return s  # already a PIN
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def is_pin(s: str) -> bool:
+    return bool(re.fullmatch(r"\d{10}", s))
+
+
+def check_input(address: str) -> dict | None:
+    """Pre-flight: reject structurally bad input before hitting the network."""
+    addr_lower = address.lower()
+
+    if not any(c.isdigit() for c in address):
+        return {
+            "action": "reject",
+            "message": "No house number found. A street address is required, e.g. '1817 Morris Ave S, Renton, WA 98055'.",
+            "pin": None,
+            "candidates": [],
+        }
+
+    for city, county in NON_KC_HINTS.items():
+        if city in addr_lower:
+            return {
+                "action": "reject",
+                "message": f"'{city.title()}' is in {county}, not King County. This tool only covers King County, WA.",
+                "pin": None,
+                "candidates": [],
+            }
+
+    if any(state in addr_lower for state in [", or ", " oregon", ", ca ", " california", ", id ", " idaho"]):
+        return {
+            "action": "reject",
+            "message": "This address doesn't appear to be in Washington state. This tool only covers King County, WA.",
+            "pin": None,
+            "candidates": [],
+        }
+
+    return None
+
+
+def find_nearby(address: str) -> list[dict]:
+    """Search KC AddressPoints for similar addresses when geocoder misses."""
     parts = address.upper().replace(",", " ").split()
 
     house_num = ""
@@ -101,7 +108,7 @@ def find_nearby_addresses(address: str) -> list[dict] | None:
             street_name = p
 
     if not street_name:
-        return None
+        return []
 
     where_parts = [f"ADDR_SN='{street_name}'"]
     if street_type:
@@ -113,7 +120,7 @@ def find_nearby_addresses(address: str) -> list[dict] | None:
 
     params = urllib.parse.urlencode({
         "where": " AND ".join(where_parts),
-        "outFields": "ADDR_FULL,PIN",
+        "outFields": "ADDR_FULL,PIN,ADDR_HN",
         "f": "json",
         "resultRecordCount": 8,
         "orderByFields": "ADDR_HN",
@@ -125,130 +132,209 @@ def find_nearby_addresses(address: str) -> list[dict] | None:
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read())
     except Exception:
-        return None
+        return []
 
-    features = data.get("features", [])
-    if not features:
-        return None
+    results = []
+    for f in data.get("features", []):
+        a = f["attributes"]
+        pin = a.get("PIN", "")
+        if pin and len(pin) == 10:
+            distance = abs(int(a.get("ADDR_HN", 0)) - int(house_num)) if house_num else 999
+            results.append({
+                "address": a.get("ADDR_FULL", ""),
+                "pin": pin,
+                "distance": distance,
+            })
 
-    return [
-        {"address": f["attributes"]["ADDR_FULL"], "pin": f["attributes"]["PIN"]}
-        for f in features
-        if f["attributes"].get("PIN")
-    ]
+    results.sort(key=lambda r: r["distance"])
+    return results
 
 
-def geocode(address: str) -> dict:
-    """Query the KC geocoder and return structured results."""
+def lookup(address: str) -> dict:
+    """Core lookup. Returns a unified result dict for both human and agent."""
+
+    normalized = normalize_input(address)
+
+    # If it's already a 10-digit PIN, just validate and return
+    if is_pin(normalized):
+        return {
+            "action": "use",
+            "pin": normalized,
+            "major": normalized[:6],
+            "minor": normalized[6:],
+            "matched_address": None,
+            "score": 100,
+            "input": address,
+            "message": f"Input is already a PIN: {normalized}",
+            "candidates": [],
+        }
+
+    # Pre-flight sanity check
+    rejection = check_input(normalized)
+    if rejection:
+        rejection["input"] = address
+        return rejection
+
+    # Hit the geocoder
     params = urllib.parse.urlencode({
-        "SingleLine": address,
+        "SingleLine": normalized,
         "outFields": "*",
         "maxLocations": 5,
         "f": "json",
     })
-    url = f"{GEOCODER_URL}?{params}"
-
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        req = urllib.request.Request(
+            f"{GEOCODER_URL}?{params}", headers={"User-Agent": "Mozilla/5.0"}
+        )
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read())
     except Exception as e:
-        return {"status": "error", "message": f"Could not reach King County geocoder: {e}"}
+        return {
+            "action": "refine",
+            "pin": None,
+            "message": f"Could not reach King County geocoder: {e}",
+            "candidates": [],
+            "input": address,
+        }
 
     candidates = data.get("candidates", [])
+
+    # --- No geocoder hits: fall back to nearby address search ---
     if not candidates:
-        nearby = find_nearby_addresses(address)
-        result = {
-            "status": "no_match",
+        nearby = find_nearby(normalized)
+        if nearby:
+            best = nearby[0]
+            return {
+                "action": "pick",
+                "pin": best["pin"],
+                "matched_address": best["address"],
+                "score": None,
+                "input": address,
+                "message": (
+                    f"No exact match for '{normalized}'. "
+                    f"Closest: {best['address']} (PIN {best['pin']}). "
+                    "Did you mean one of these?"
+                ),
+                "suggestions": [
+                    "Include directional suffixes (S, N, NE, SW) — they matter in KC",
+                    "Verify the house number exists on this street",
+                ],
+                "candidates": nearby,
+            }
+        return {
+            "action": "refine",
+            "pin": None,
+            "input": address,
             "message": (
-                f"No match found for '{address}'. Check for typos — "
-                "the geocoder needs a valid King County street address with house number."
+                f"No match found for '{normalized}'. "
+                "Check for typos — needs a valid King County street address."
             ),
             "suggestions": [
                 "Verify the street name spelling",
                 "Include the city (e.g. Renton, Seattle, Bellevue)",
-                "Include directional suffixes (S, N, NE, SW) — they matter in KC",
+                "Include directional suffixes (S, N, NE, SW)",
                 "Try the full format: '1234 Main St S, Renton, WA 98055'",
             ],
+            "candidates": [],
         }
-        if nearby:
-            result["nearby_addresses"] = nearby
-            result["message"] = (
-                f"No exact match for '{address}', but similar addresses exist. "
-                "Did you mean one of these?"
-            )
-        return result
 
+    # --- Process geocoder results ---
     best = candidates[0]
     score = best.get("score", 0)
     attrs = best.get("attributes", {})
     pin = attrs.get("PIN", "")
     matched = attrs.get("Match_addr", "")
 
+    # High confidence exact match
     if score >= 90 and pin and len(pin) == 10:
         return {
-            "status": "match",
+            "action": "use",
             "pin": pin,
             "major": pin[:6],
             "minor": pin[6:],
             "matched_address": matched,
             "score": score,
-            "input_address": address,
+            "input": address,
+            "message": f"Matched: {matched} → PIN {pin}",
+            "candidates": [],
         }
 
-    if score >= 70:
-        result = {
-            "status": "low_confidence",
-            "message": f"Best match is '{matched}' (confidence: {score}%). Verify this is the right property.",
-            "pin": pin if pin and len(pin) == 10 else None,
+    # Medium confidence — have a PIN but score is lower
+    if score >= 70 and pin and len(pin) == 10:
+        return {
+            "action": "pick",
+            "pin": pin,
             "matched_address": matched,
             "score": score,
+            "input": address,
+            "message": (
+                f"Best match: '{matched}' (confidence {score:.0f}%). "
+                "Verify this is the right property."
+            ),
+            "candidates": [{"address": matched, "pin": pin, "score": score}],
         }
-        if not pin or len(pin) != 10:
-            result["message"] += " (No parcel number returned — the match may be a street-level interpolation, not a specific property.)"
-        return result
 
-    others = []
-    for c in candidates[1:]:
+    # Low confidence or no PIN — gather alternatives
+    alts = []
+    for c in candidates:
         ca = c.get("attributes", {})
         cp = ca.get("PIN", "")
         cm = ca.get("Match_addr", "")
         cs = c.get("score", 0)
-        if cs >= 50 and cp and len(cp) == 10:
-            others.append({"address": cm, "pin": cp, "score": cs})
+        if cp and len(cp) == 10 and cs >= 50:
+            alts.append({"address": cm, "pin": cp, "score": cs})
 
+    if alts:
+        return {
+            "action": "pick",
+            "pin": alts[0]["pin"],
+            "matched_address": alts[0]["address"],
+            "score": alts[0]["score"],
+            "input": address,
+            "message": f"Low confidence. Best guess: {alts[0]['address']}. Did you mean one of these?",
+            "candidates": alts,
+        }
+
+    # Nothing usable
+    nearby = find_nearby(normalized)
     return {
-        "status": "poor_match",
-        "message": f"Best match '{matched}' has low confidence ({score}%). Did you mean one of these?",
-        "candidates": others if others else None,
+        "action": "refine",
+        "pin": None,
+        "input": address,
+        "message": f"Could not resolve '{normalized}' to a parcel. Geocoder returned '{matched}' but no PIN.",
         "suggestions": [
             "Check the street name and directional suffix (S, N, NE, SW)",
             "Make sure the city is in King County",
-            f"Best guess was: {matched}",
         ],
+        "candidates": nearby,
     }
 
 
+EXIT_CODES = {"use": 0, "pick": 1, "refine": 1, "reject": 2}
+
+
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: lookup.py <address>")
-        print('Example: lookup.py "1817 Morris Ave S, Renton, WA 98055"')
-        sys.exit(1)
+    args = sys.argv[1:]
+    pipe_mode = "--pipe" in args
+    args = [a for a in args if a != "--pipe"]
 
-    address = " ".join(sys.argv[1:])
+    if not args:
+        print("Usage: lookup.py [--pipe] <address>")
+        print('  Human:  lookup.py "1817 Morris Ave S, Renton, WA 98055"')
+        print('  Agent:  lookup.py --pipe "1817 Morris Ave S, Renton, WA 98055"')
+        print("")
+        print("Actions:  use (exit 0) | pick (exit 1) | refine (exit 1) | reject (exit 2)")
+        sys.exit(2)
 
-    sanity = check_address_sanity(address)
-    if sanity:
-        print(json.dumps(sanity, indent=2))
-        sys.exit(1)
+    address = " ".join(args)
+    result = lookup(address)
 
-    result = geocode(address)
-    print(json.dumps(result, indent=2))
-
-    if result["status"] == "match":
-        sys.exit(0)
+    if pipe_mode:
+        print(json.dumps(result, separators=(",", ":")))
     else:
-        sys.exit(1)
+        print(json.dumps(result, indent=2))
+
+    sys.exit(EXIT_CODES.get(result["action"], 1))
 
 
 if __name__ == "__main__":
