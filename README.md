@@ -99,6 +99,7 @@ PARCEL=$(python3 lookup.py --pipe "1817 Morris Ave S, Renton" | python3 -c "impo
 
 **Related tools in this series:**
 - [`king-county-permit-status`](https://github.com/chaoz23/king-county-permit-status) — look up permit history by address, parcel, or permit number
+- [`wa-contractor-license`](https://github.com/chaoz23/wa-contractor-license) — verify WA contractor license status and violations
 - [`king-county-property-tax-appeal`](https://github.com/chaoz23/king-county-property-tax-appeal) — build a filing-ready tax appeal packet
 
 ## Requirements
