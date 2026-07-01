@@ -312,16 +312,102 @@ def lookup(address: str) -> dict:
 
 EXIT_CODES = {"use": 0, "pick": 1, "refine": 1, "reject": 2}
 
+TOOL_SCHEMA = {
+    "name": "king_county_address_to_parcel",
+    "description": (
+        "Convert a King County, WA street address to its 10-digit parcel number. "
+        "Returns action=use (exact match), action=pick (ambiguous — show candidates), "
+        "action=refine (no match — try different input), or action=reject (bad input). "
+        "Also accepts a bare parcel number or 'PIN: XXXXXXXXXX' as passthrough. "
+        "Use this before any tool that requires a King County parcel number."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "address": {
+                "type": "string",
+                "description": (
+                    "Street address in King County, WA. Include house number and street name. "
+                    "City is recommended. Also accepts bare 10-digit parcel numbers. "
+                    "Examples: '1817 Morris Ave S, Renton, WA 98055', "
+                    "'600 Grady Way, Renton', '7222000353'."
+                ),
+            }
+        },
+        "required": ["address"],
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["use", "pick", "refine", "reject"],
+                "description": (
+                    "use — parcel_number is valid, consume it; "
+                    "pick — multiple candidates, present to user or pick highest-score; "
+                    "refine — no match found, try a different input; "
+                    "reject — bad input (wrong county, no house number), do not retry"
+                ),
+            },
+            "parcel_number": {
+                "type": ["string", "null"],
+                "description": "10-digit King County parcel number. Present when action=use or action=pick.",
+            },
+            "matched_address": {
+                "type": ["string", "null"],
+                "description": "Geocoder's canonical address string.",
+            },
+            "score": {
+                "type": ["number", "null"],
+                "description": "Match confidence 0–100. Scores ≥90 are reliable.",
+            },
+            "candidates": {
+                "type": "array",
+                "description": "Ranked alternatives when action=pick. Each has address, parcel_number, distance_m.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "address": {"type": "string"},
+                        "parcel_number": {"type": "string"},
+                        "distance_m": {"type": ["number", "null"]},
+                    },
+                },
+            },
+            "message": {"type": "string"},
+            "suggestions": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Hints for the user when action=refine or reject.",
+            },
+        },
+        "required": ["action", "message"],
+    },
+    "invocation": {
+        "command": "python3 lookup.py --pipe \"{address}\"",
+        "exit_codes": {
+            "0": "action=use — parcel_number is valid",
+            "1": "action=pick or refine — needs user input or a different address",
+            "2": "action=reject — do not retry without changing input",
+        },
+    },
+}
+
 
 def main():
     args = sys.argv[1:]
     pipe_mode = "--pipe" in args
-    args = [a for a in args if a != "--pipe"]
+    schema_mode = "--schema" in args
+    args = [a for a in args if a not in ("--pipe", "--schema")]
+
+    if schema_mode:
+        print(json.dumps(TOOL_SCHEMA, indent=2))
+        sys.exit(0)
 
     if not args:
-        print("Usage: lookup.py [--pipe] <address>")
+        print("Usage: lookup.py [--pipe] [--schema] <address>")
         print('  Human:  lookup.py "1817 Morris Ave S, Renton, WA 98055"')
         print('  Agent:  lookup.py --pipe "1817 Morris Ave S, Renton, WA 98055"')
+        print('  Schema: lookup.py --schema')
         print("")
         print("Actions:  use (exit 0) | pick (exit 1) | refine (exit 1) | reject (exit 2)")
         sys.exit(2)

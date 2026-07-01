@@ -10,6 +10,9 @@ python3 lookup.py "1817 Morris Ave S, Renton, WA 98055"
 
 # Agent pipeline (compact, deterministic exit codes)
 python3 lookup.py --pipe "1817 Morris Ave S, Renton, WA 98055"
+
+# Print tool definition (Anthropic/OpenAI tool-call schema)
+python3 lookup.py --schema
 ```
 
 ## Response contract
@@ -57,6 +60,46 @@ The tool handles messy input:
 | `"600 Grady Way, Renton"` | `pick` — address doesn't exist, suggests 601 S Grady Way |
 | `"123 Main St, Tacoma"` | `reject` — Tacoma is Pierce County |
 | `"Morris Ave Renton"` | `reject` — no house number |
+
+## For agents
+
+`tool.json` at the repo root contains the full tool definition in Anthropic/OpenAI tool-call format. An agent can load it directly or fetch the live version:
+
+```bash
+python3 lookup.py --schema
+```
+
+```json
+{
+  "name": "king_county_address_to_parcel",
+  "description": "Convert a King County, WA street address to its 10-digit parcel number...",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "address": { "type": "string", "description": "Street address in King County, WA..." }
+    },
+    "required": ["address"]
+  },
+  "output_schema": { ... },
+  "invocation": {
+    "command": "python3 lookup.py --pipe \"{address}\"",
+    "exit_codes": {
+      "0": "action=use — parcel_number is valid",
+      "1": "action=pick or refine — needs user input or a different address",
+      "2": "action=reject — do not retry without changing input"
+    }
+  }
+}
+```
+
+**Pipeline pattern:**
+```bash
+PARCEL=$(python3 lookup.py --pipe "1817 Morris Ave S, Renton" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['parcel_number'] if d['action']=='use' else '')")
+```
+
+**Related tools in this series:**
+- [`king-county-permit-status`](https://github.com/chaoz23/king-county-permit-status) — look up permit history by address, parcel, or permit number
+- [`king-county-property-tax-appeal`](https://github.com/chaoz23/king-county-property-tax-appeal) — build a filing-ready tax appeal packet
 
 ## Requirements
 

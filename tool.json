@@ -1,0 +1,95 @@
+{
+  "name": "king_county_address_to_parcel",
+  "description": "Convert a King County, WA street address to its 10-digit parcel number. Returns action=use (exact match), action=pick (ambiguous \u2014 show candidates), action=refine (no match \u2014 try different input), or action=reject (bad input). Also accepts a bare parcel number or 'PIN: XXXXXXXXXX' as passthrough. Use this before any tool that requires a King County parcel number.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "address": {
+        "type": "string",
+        "description": "Street address in King County, WA. Include house number and street name. City is recommended. Also accepts bare 10-digit parcel numbers. Examples: '1817 Morris Ave S, Renton, WA 98055', '600 Grady Way, Renton', '7222000353'."
+      }
+    },
+    "required": [
+      "address"
+    ]
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "use",
+          "pick",
+          "refine",
+          "reject"
+        ],
+        "description": "use \u2014 parcel_number is valid, consume it; pick \u2014 multiple candidates, present to user or pick highest-score; refine \u2014 no match found, try a different input; reject \u2014 bad input (wrong county, no house number), do not retry"
+      },
+      "parcel_number": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "10-digit King County parcel number. Present when action=use or action=pick."
+      },
+      "matched_address": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Geocoder's canonical address string."
+      },
+      "score": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Match confidence 0\u2013100. Scores \u226590 are reliable."
+      },
+      "candidates": {
+        "type": "array",
+        "description": "Ranked alternatives when action=pick. Each has address, parcel_number, distance_m.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "address": {
+              "type": "string"
+            },
+            "parcel_number": {
+              "type": "string"
+            },
+            "distance_m": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "message": {
+        "type": "string"
+      },
+      "suggestions": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Hints for the user when action=refine or reject."
+      }
+    },
+    "required": [
+      "action",
+      "message"
+    ]
+  },
+  "invocation": {
+    "command": "python3 lookup.py --pipe \"{address}\"",
+    "exit_codes": {
+      "0": "action=use \u2014 parcel_number is valid",
+      "1": "action=pick or refine \u2014 needs user input or a different address",
+      "2": "action=reject \u2014 do not retry without changing input"
+    }
+  }
+}
