@@ -45,6 +45,8 @@ NON_KC_HINTS = {
     "mukilteo": "Snohomish County", "bremerton": "Kitsap County",
 }
 
+NON_WA_STATES = ("or", "oregon", "ca", "california", "id", "idaho")
+
 
 def normalize_input(raw: str) -> str:
     """Normalize the input: strip parcel number prefixes, extra whitespace, etc."""
@@ -60,10 +62,60 @@ def is_pin(s: str) -> bool:
     return bool(re.fullmatch(r"\d{10}", s))
 
 
+def find_non_kc_locality(address: str) -> tuple[str, str] | None:
+    """Return an explicitly stated non-King-County city and county.
+
+    City names can also be street names (for example, Lakewood Ave S in
+    Seattle), so the street component must not be searched for locality hints.
+    """
+    parts = [part.strip().lower() for part in address.split(",")]
+
+    if len(parts) > 1:
+        locality_parts = parts[1:]
+        for part in locality_parts:
+            for city, county in NON_KC_HINTS.items():
+                city_pattern = re.escape(city)
+                if re.fullmatch(
+                    rf"{city_pattern}(?:\s+(?:wa|washington))?"
+                    rf"(?:\s+\d{{5}}(?:-\d{{4}})?)?",
+                    part,
+                ):
+                    return city, county
+        return None
+
+    # Without commas, only reject a city in the conventional trailing
+    # "<city> WA [ZIP]" position. Ambiguous input is left to the KC geocoder.
+    for city, county in NON_KC_HINTS.items():
+        city_pattern = re.escape(city)
+        if re.search(
+            rf"\b{city_pattern}\s+(?:wa|washington)"
+            rf"(?:\s+\d{{5}}(?:-\d{{4}})?)?\s*$",
+            address.lower(),
+        ):
+            return city, county
+
+    return None
+
+
+def has_explicit_non_wa_state(address: str) -> bool:
+    """Return whether a supported non-Washington state is explicit."""
+    parts = [part.strip().lower() for part in address.split(",")]
+    state_pattern = "|".join(re.escape(state) for state in NON_WA_STATES)
+
+    if len(parts) > 1:
+        return any(
+            re.search(rf"\b(?:{state_pattern})\b", part)
+            for part in parts[1:]
+        )
+
+    return bool(re.search(
+        rf"\b(?:{state_pattern})(?:\s+\d{{5}}(?:-\d{{4}})?)?\s*$",
+        address.lower(),
+    ))
+
+
 def check_input(address: str) -> dict | None:
     """Pre-flight: reject structurally bad input before hitting the network."""
-    addr_lower = address.lower()
-
     if not any(c.isdigit() for c in address):
         return {
             "action": "reject",
@@ -72,16 +124,17 @@ def check_input(address: str) -> dict | None:
             "candidates": [],
         }
 
-    for city, county in NON_KC_HINTS.items():
-        if city in addr_lower:
-            return {
-                "action": "reject",
-                "message": f"'{city.title()}' is in {county}, not King County. This tool only covers King County, WA.",
-                "parcel_number": None,
-                "candidates": [],
-            }
+    non_kc_locality = find_non_kc_locality(address)
+    if non_kc_locality:
+        city, county = non_kc_locality
+        return {
+            "action": "reject",
+            "message": f"'{city.title()}' is in {county}, not King County. This tool only covers King County, WA.",
+            "parcel_number": None,
+            "candidates": [],
+        }
 
-    if any(state in addr_lower for state in [", or ", " oregon", ", ca ", " california", ", id ", " idaho"]):
+    if has_explicit_non_wa_state(address):
         return {
             "action": "reject",
             "message": "This address doesn't appear to be in Washington state. This tool only covers King County, WA.",
