@@ -63,6 +63,16 @@ class InputValidationTests(unittest.TestCase):
 
 
 class LookupTests(unittest.TestCase):
+    candidate_fields = {
+        "address",
+        "parcel_number",
+        "score",
+        "house_number_distance",
+    }
+
+    def assert_candidate_contract(self, candidate):
+        self.assertEqual(self.candidate_fields, set(candidate))
+
     @mock.patch("lookup.urllib.request.urlopen")
     def test_street_name_collision_reaches_geocoder(self, urlopen):
         urlopen.return_value = FakeResponse({
@@ -100,6 +110,65 @@ class LookupTests(unittest.TestCase):
         self.assertEqual("refine", result["action"])
         self.assertIsNone(result["parcel_number"])
         self.assertEqual(2, urlopen.call_count)
+
+    @mock.patch("lookup.urllib.request.urlopen")
+    def test_geocoder_pick_uses_canonical_candidate_contract(self, urlopen):
+        urlopen.return_value = FakeResponse({
+            "candidates": [{
+                "score": 82,
+                "attributes": {
+                    "PIN": "1234567890",
+                    "Match_addr": "123 MAIN ST, Seattle, WA, 98101",
+                },
+            }],
+        })
+
+        result = lookup.lookup("123 Main St, Seattle, WA")
+
+        self.assertEqual("pick", result["action"])
+        candidate = result["candidates"][0]
+        self.assert_candidate_contract(candidate)
+        self.assertEqual(82, candidate["score"])
+        self.assertIsNone(candidate["house_number_distance"])
+
+    @mock.patch("lookup.urllib.request.urlopen")
+    def test_nearby_pick_uses_canonical_candidate_contract(self, urlopen):
+        urlopen.side_effect = [
+            FakeResponse({"candidates": []}),
+            FakeResponse({
+                "features": [{
+                    "attributes": {
+                        "ADDR_FULL": "125 MAIN ST, SEATTLE, WA 98101",
+                        "PIN": "1234567890",
+                        "ADDR_HN": 125,
+                    },
+                }],
+            }),
+        ]
+
+        result = lookup.lookup("123 Main St, Seattle, WA")
+
+        self.assertEqual("pick", result["action"])
+        candidate = result["candidates"][0]
+        self.assert_candidate_contract(candidate)
+        self.assertIsNone(candidate["score"])
+        self.assertEqual(2, candidate["house_number_distance"])
+
+
+class SchemaTests(unittest.TestCase):
+    def test_checked_in_tool_schema_matches_runtime_schema(self):
+        with open("tool.json", encoding="utf-8") as schema_file:
+            self.assertEqual(lookup.TOOL_SCHEMA, json.load(schema_file))
+
+    def test_candidate_schema_requires_canonical_fields(self):
+        candidate_schema = (
+            lookup.TOOL_SCHEMA["output_schema"]["properties"]["candidates"]["items"]
+        )
+
+        self.assertEqual(
+            {"address", "parcel_number", "score", "house_number_distance"},
+            set(candidate_schema["required"]),
+        )
 
 
 class CliTests(unittest.TestCase):

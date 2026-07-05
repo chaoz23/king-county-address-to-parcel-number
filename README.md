@@ -34,9 +34,19 @@ Every response has the same shape:
 |---|---|---|
 | `action` | Agent | `use` (take the parcel number), `pick` (choose from candidates), `refine` (try different input), `reject` (bad input, don't retry) |
 | `parcel_number` | Both | The answer (action=use) or best guess (action=pick), null otherwise |
-| `candidates` | Agent | Ranked alternatives with address, parcel number, distance from input |
+| `candidates` | Agent | Ranked alternatives using the candidate contract below |
 | `message` | Human | Plain-English explanation of what happened |
 | `suggestions` | Human | What to try next when it doesn't match |
+
+Every candidate has the same shape regardless of which King County service
+produced it:
+
+| Candidate field | Description |
+|---|---|
+| `address` | Canonical candidate address |
+| `parcel_number` | Candidate's 10-digit parcel number |
+| `score` | Geocoder confidence from 0–100, or `null` for nearby-address results |
+| `house_number_distance` | Absolute difference between input and candidate house numbers, or `null` for geocoder results; this is not a physical distance |
 
 ## Exit codes
 
