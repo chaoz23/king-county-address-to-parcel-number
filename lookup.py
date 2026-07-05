@@ -114,6 +114,22 @@ def has_explicit_non_wa_state(address: str) -> bool:
     ))
 
 
+def make_candidate(
+    address: str,
+    parcel_number: str,
+    *,
+    score: float | None = None,
+    house_number_distance: int | None = None,
+) -> dict:
+    """Build one candidate using the public, source-independent contract."""
+    return {
+        "address": address,
+        "parcel_number": parcel_number,
+        "score": score,
+        "house_number_distance": house_number_distance,
+    }
+
+
 def check_input(address: str) -> dict | None:
     """Pre-flight: reject structurally bad input before hitting the network."""
     if not any(c.isdigit() for c in address):
@@ -193,13 +209,13 @@ def find_nearby(address: str) -> list[dict]:
         pin = a.get("PIN", "")
         if pin and len(pin) == 10:
             distance = abs(int(a.get("ADDR_HN", 0)) - int(house_num)) if house_num else 999
-            results.append({
-                "address": a.get("ADDR_FULL", ""),
-                "parcel_number": pin,
-                "distance": distance,
-            })
+            results.append(make_candidate(
+                a.get("ADDR_FULL", ""),
+                pin,
+                house_number_distance=distance,
+            ))
 
-    results.sort(key=lambda r: r["distance"])
+    results.sort(key=lambda r: r["house_number_distance"])
     return results
 
 
@@ -324,7 +340,7 @@ def lookup(address: str) -> dict:
                 f"Best match: '{matched}' (confidence {score:.0f}%). "
                 "Verify this is the right property."
             ),
-            "candidates": [{"address": matched, "parcel_number": pin, "score": score}],
+            "candidates": [make_candidate(matched, pin, score=score)],
         }
 
     # Low confidence or no PIN — gather alternatives
@@ -335,7 +351,7 @@ def lookup(address: str) -> dict:
         cm = ca.get("Match_addr", "")
         cs = c.get("score", 0)
         if cp and len(cp) == 10 and cs >= 50:
-            alts.append({"address": cm, "parcel_number": cp, "score": cs})
+            alts.append(make_candidate(cm, cp, score=cs))
 
     if alts:
         return {
@@ -416,14 +432,33 @@ TOOL_SCHEMA = {
             },
             "candidates": {
                 "type": "array",
-                "description": "Ranked alternatives when action=pick. Each has address, parcel_number, distance_m.",
+                "description": (
+                    "Ranked alternatives. Every candidate has the same fields; "
+                    "source-specific ranking values are null when unavailable."
+                ),
                 "items": {
                     "type": "object",
                     "properties": {
                         "address": {"type": "string"},
                         "parcel_number": {"type": "string"},
-                        "distance_m": {"type": ["number", "null"]},
+                        "score": {
+                            "type": ["number", "null"],
+                            "description": "Geocoder confidence from 0–100.",
+                        },
+                        "house_number_distance": {
+                            "type": ["integer", "null"],
+                            "description": (
+                                "Absolute house-number difference for nearby-address "
+                                "fallback results; not a physical distance."
+                            ),
+                        },
                     },
+                    "required": [
+                        "address",
+                        "parcel_number",
+                        "score",
+                        "house_number_distance",
+                    ],
                 },
             },
             "message": {"type": "string"},

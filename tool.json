@@ -49,7 +49,7 @@
       },
       "candidates": {
         "type": "array",
-        "description": "Ranked alternatives when action=pick. Each has address, parcel_number, distance_m.",
+        "description": "Ranked alternatives. Every candidate has the same fields; source-specific ranking values are null when unavailable.",
         "items": {
           "type": "object",
           "properties": {
@@ -59,13 +59,27 @@
             "parcel_number": {
               "type": "string"
             },
-            "distance_m": {
+            "score": {
               "type": [
                 "number",
                 "null"
-              ]
+              ],
+              "description": "Geocoder confidence from 0–100."
+            },
+            "house_number_distance": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "Absolute house-number difference for nearby-address fallback results; not a physical distance."
             }
-          }
+          },
+          "required": [
+            "address",
+            "parcel_number",
+            "score",
+            "house_number_distance"
+          ]
         }
       },
       "message": {
