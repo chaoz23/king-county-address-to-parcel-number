@@ -35,6 +35,11 @@ ADDRESS_POINTS_URL = (
     "/Address/KingCo_AddressPoints/MapServer/0/query"
 )
 
+PARCELS_URL = (
+    "https://gismaps.kingcounty.gov/arcgis/rest/services"
+    "/Property/KingCo_Parcels/MapServer/0/query"
+)
+
 NON_KC_HINTS = {
     "tacoma": "Pierce County", "everett": "Snohomish County",
     "lynnwood": "Snohomish County", "olympia": "Thurston County",
@@ -127,6 +132,83 @@ def make_candidate(
         "parcel_number": parcel_number,
         "score": score,
         "house_number_distance": house_number_distance,
+    }
+
+
+def pin_verification_unavailable(pin: str, original_input: str, detail: str) -> dict:
+    """Return a retryable result without claiming that a PIN is invalid."""
+    return {
+        "action": "refine",
+        "parcel_number": None,
+        "matched_address": None,
+        "score": None,
+        "input": original_input,
+        "message": f"Could not verify parcel number {pin}: {detail}",
+        "suggestions": ["Retry the same PIN when the King County parcel service is available"],
+        "candidates": [],
+    }
+
+
+def lookup_pin(pin: str, original_input: str) -> dict:
+    """Verify a 10-digit PIN against King County's authoritative parcel layer."""
+    params = urllib.parse.urlencode({
+        "where": f"PIN='{pin}'",
+        "outFields": "PIN,MAJOR,MINOR",
+        "returnGeometry": "false",
+        "resultRecordCount": 1,
+        "f": "json",
+    })
+
+    try:
+        req = urllib.request.Request(
+            f"{PARCELS_URL}?{params}", headers={"User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+
+        features = data.get("features")
+        if data.get("error") or not isinstance(features, list):
+            raise ValueError("unexpected parcel service response")
+        if features:
+            feature = features[0]
+            if not isinstance(feature, dict):
+                raise ValueError("unexpected parcel feature")
+            attrs = feature.get("attributes")
+            if not isinstance(attrs, dict):
+                raise ValueError("unexpected parcel attributes")
+    except Exception as e:
+        return pin_verification_unavailable(pin, original_input, str(e))
+
+    if not features:
+        return {
+            "action": "reject",
+            "parcel_number": None,
+            "matched_address": None,
+            "score": None,
+            "input": original_input,
+            "message": f"No King County parcel exists with parcel number {pin}.",
+            "suggestions": ["Check all 10 digits against the source document"],
+            "candidates": [],
+        }
+
+    verified_pin = attrs.get("PIN", "")
+    if verified_pin != pin:
+        return pin_verification_unavailable(
+            pin, original_input, "King County returned an unexpected parcel"
+        )
+
+    major = attrs.get("MAJOR") or pin[:6]
+    minor = attrs.get("MINOR") or pin[6:]
+    return {
+        "action": "use",
+        "parcel_number": verified_pin,
+        "major": major,
+        "minor": minor,
+        "matched_address": None,
+        "score": 100,
+        "input": original_input,
+        "message": f"Verified King County parcel number: {verified_pin}",
+        "candidates": [],
     }
 
 
@@ -224,19 +306,9 @@ def lookup(address: str) -> dict:
 
     normalized = normalize_input(address)
 
-    # If it's already a 10-digit PIN, just validate and return
+    # Verify 10-digit PINs against the authoritative parcel layer.
     if is_pin(normalized):
-        return {
-            "action": "use",
-            "parcel_number": normalized,
-            "major": normalized[:6],
-            "minor": normalized[6:],
-            "matched_address": None,
-            "score": 100,
-            "input": address,
-            "message": f"Input is already a parcel number: {normalized}",
-            "candidates": [],
-        }
+        return lookup_pin(normalized, address)
 
     # Pre-flight sanity check
     rejection = check_input(normalized)
@@ -387,7 +459,8 @@ TOOL_SCHEMA = {
         "Convert a King County, WA street address to its 10-digit parcel number. "
         "Returns action=use (exact match), action=pick (ambiguous — show candidates), "
         "action=refine (no match — try different input), or action=reject (bad input). "
-        "Also accepts a bare parcel number or 'PIN: XXXXXXXXXX' as passthrough. "
+        "Also verifies a bare parcel number or 'PIN: XXXXXXXXXX' against the "
+        "official King County parcel layer. "
         "Use this before any tool that requires a King County parcel number."
     ),
     "input_schema": {
@@ -397,7 +470,7 @@ TOOL_SCHEMA = {
                 "type": "string",
                 "description": (
                     "Street address in King County, WA. Include house number and street name. "
-                    "City is recommended. Also accepts bare 10-digit parcel numbers. "
+                    "City is recommended. Also verifies bare 10-digit parcel numbers. "
                     "Examples: '1817 Morris Ave S, Renton, WA 98055', "
                     "'600 Grady Way, Renton', '7222000353'."
                 ),

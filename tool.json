@@ -1,12 +1,12 @@
 {
   "name": "king_county_address_to_parcel",
-  "description": "Convert a King County, WA street address to its 10-digit parcel number. Returns action=use (exact match), action=pick (ambiguous \u2014 show candidates), action=refine (no match \u2014 try different input), or action=reject (bad input). Also accepts a bare parcel number or 'PIN: XXXXXXXXXX' as passthrough. Use this before any tool that requires a King County parcel number.",
+  "description": "Convert a King County, WA street address to its 10-digit parcel number. Returns action=use (exact match), action=pick (ambiguous \u2014 show candidates), action=refine (no match \u2014 try different input), or action=reject (bad input). Also verifies a bare parcel number or 'PIN: XXXXXXXXXX' against the official King County parcel layer. Use this before any tool that requires a King County parcel number.",
   "input_schema": {
     "type": "object",
     "properties": {
       "address": {
         "type": "string",
-        "description": "Street address in King County, WA. Include house number and street name. City is recommended. Also accepts bare 10-digit parcel numbers. Examples: '1817 Morris Ave S, Renton, WA 98055', '600 Grady Way, Renton', '7222000353'."
+        "description": "Street address in King County, WA. Include house number and street name. City is recommended. Also verifies bare 10-digit parcel numbers. Examples: '1817 Morris Ave S, Renton, WA 98055', '600 Grady Way, Renton', '7222000353'."
       }
     },
     "required": [

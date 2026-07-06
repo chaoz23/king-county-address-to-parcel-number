@@ -65,8 +65,8 @@ The tool handles messy input:
 | `"1817 Morris Ave S, Renton, WA 98055"` | `use` — exact match, score 100 |
 | `"1817 Moris Ave S, Renton"` | `use` — fuzzy match corrects typo, score 95 |
 | `"1817 Morris Ave, Renton"` | `use` — infers missing directional "S", score 99 |
-| `"PIN: 7222000353"` | `use` — detects it's already a PIN |
-| `"7222000353"` | `use` — bare PIN passthrough |
+| `"PIN: 7222000353"` | `use` — verifies the PIN against King County's parcel layer |
+| `"7222000353"` | `use` — verifies the bare PIN before returning it |
 | `"600 Grady Way, Renton"` | `pick` — address doesn't exist, suggests 601 S Grady Way |
 | `"123 Main St, Tacoma"` | `reject` — Tacoma is Pierce County |
 | `"Morris Ave Renton"` | `reject` — no house number |
@@ -115,7 +115,7 @@ PARCEL=$(python3 lookup.py --pipe "1817 Morris Ave S, Renton" | python3 -c "impo
 ## Requirements
 
 - Python 3.10+ (stdlib only, no dependencies)
-- Network access to `gismaps.kingcounty.gov`
+- Network access to `gismaps.kingcounty.gov` (including for PIN verification)
 
 ## License
 

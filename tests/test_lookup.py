@@ -155,6 +155,87 @@ class LookupTests(unittest.TestCase):
         self.assertEqual(2, candidate["house_number_distance"])
 
 
+class PinLookupTests(unittest.TestCase):
+    @mock.patch("lookup.urllib.request.urlopen")
+    def test_bare_pin_is_verified_against_parcel_layer(self, urlopen):
+        urlopen.return_value = FakeResponse({
+            "features": [{
+                "attributes": {
+                    "PIN": "7222000353",
+                    "MAJOR": "722200",
+                    "MINOR": "0353",
+                },
+            }],
+        })
+
+        result = lookup.lookup("7222000353")
+
+        self.assertEqual("use", result["action"])
+        self.assertEqual("7222000353", result["parcel_number"])
+        self.assertEqual("722200", result["major"])
+        self.assertEqual("0353", result["minor"])
+        request = urlopen.call_args.args[0]
+        self.assertIn("KingCo_Parcels", request.full_url)
+        self.assertIn("PIN%3D%277222000353%27", request.full_url)
+
+    @mock.patch("lookup.urllib.request.urlopen")
+    def test_pin_prefix_is_normalized_before_verification(self, urlopen):
+        urlopen.return_value = FakeResponse({
+            "features": [{
+                "attributes": {
+                    "PIN": "7222000353",
+                    "MAJOR": "722200",
+                    "MINOR": "0353",
+                },
+            }],
+        })
+
+        result = lookup.lookup("PIN: 7222000353")
+
+        self.assertEqual("use", result["action"])
+        self.assertEqual("PIN: 7222000353", result["input"])
+
+    @mock.patch("lookup.urllib.request.urlopen")
+    def test_unknown_pin_is_rejected(self, urlopen):
+        urlopen.return_value = FakeResponse({"features": []})
+
+        result = lookup.lookup("0000000000")
+
+        self.assertEqual("reject", result["action"])
+        self.assertIsNone(result["parcel_number"])
+        self.assertIn("No King County parcel exists", result["message"])
+
+    @mock.patch("lookup.urllib.request.urlopen")
+    def test_parcel_service_failure_does_not_reject_pin(self, urlopen):
+        urlopen.side_effect = OSError("service unavailable")
+
+        result = lookup.lookup("7222000353")
+
+        self.assertEqual("refine", result["action"])
+        self.assertIsNone(result["parcel_number"])
+        self.assertIn("Could not verify", result["message"])
+
+    @mock.patch("lookup.urllib.request.urlopen")
+    def test_parcel_service_error_payload_does_not_reject_pin(self, urlopen):
+        urlopen.return_value = FakeResponse({
+            "error": {"code": 503, "message": "Service unavailable"},
+        })
+
+        result = lookup.lookup("7222000353")
+
+        self.assertEqual("refine", result["action"])
+        self.assertIsNone(result["parcel_number"])
+
+    @mock.patch("lookup.urllib.request.urlopen")
+    def test_malformed_parcel_feature_does_not_crash_or_reject(self, urlopen):
+        urlopen.return_value = FakeResponse({"features": [{"attributes": None}]})
+
+        result = lookup.lookup("7222000353")
+
+        self.assertEqual("refine", result["action"])
+        self.assertIsNone(result["parcel_number"])
+
+
 class SchemaTests(unittest.TestCase):
     def test_checked_in_tool_schema_matches_runtime_schema(self):
         with open("tool.json", encoding="utf-8") as schema_file:
