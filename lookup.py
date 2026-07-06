@@ -19,6 +19,8 @@ Exit codes:
   2 = bad input (action=reject), do not retry without changing input
 """
 
+from __future__ import annotations
+
 import json
 import re
 import sys
