@@ -54,6 +54,8 @@ NON_KC_HINTS = {
 
 NON_WA_STATES = ("or", "oregon", "ca", "california", "id", "idaho")
 
+HOUSE_NUMBER_RE = re.compile(r"^\s*\d+[A-Za-z]?(?:-\d+[A-Za-z]?)?\b")
+
 
 def normalize_input(raw: str) -> str:
     """Normalize the input: strip parcel number prefixes, extra whitespace, etc."""
@@ -67,6 +69,11 @@ def normalize_input(raw: str) -> str:
 
 def is_pin(s: str) -> bool:
     return bool(re.fullmatch(r"\d{10}", s))
+
+
+def has_house_number(address: str) -> bool:
+    """Return whether the address starts with a street-address house number."""
+    return bool(HOUSE_NUMBER_RE.search(address))
 
 
 def find_non_kc_locality(address: str) -> tuple[str, str] | None:
@@ -216,7 +223,7 @@ def lookup_pin(pin: str, original_input: str) -> dict:
 
 def check_input(address: str) -> dict | None:
     """Pre-flight: reject structurally bad input before hitting the network."""
-    if not any(c.isdigit() for c in address):
+    if not has_house_number(address):
         return {
             "action": "reject",
             "message": "No house number found. A street address is required, e.g. '1817 Morris Ave S, Renton, WA 98055'.",

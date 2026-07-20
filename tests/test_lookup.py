@@ -61,6 +61,30 @@ class InputValidationTests(unittest.TestCase):
                 result = lookup.check_input(address)
                 self.assertEqual("reject", result["action"])
 
+    def test_ordinal_street_without_house_number_is_rejected(self):
+        addresses = [
+            "5th Ave Seattle",
+            "NE 8th St, Bellevue, WA",
+            "I-5 Seattle WA",
+        ]
+
+        for address in addresses:
+            with self.subTest(address=address):
+                result = lookup.check_input(address)
+                self.assertEqual("reject", result["action"])
+                self.assertIn("No house number", result["message"])
+
+    def test_leading_house_number_is_still_valid(self):
+        addresses = [
+            "1817 Morris Ave S, Renton, WA 98055",
+            "123A Main St, Seattle, WA",
+            "123-125 Main St, Seattle, WA",
+        ]
+
+        for address in addresses:
+            with self.subTest(address=address):
+                self.assertIsNone(lookup.check_input(address))
+
 
 class LookupTests(unittest.TestCase):
     candidate_fields = {
@@ -96,6 +120,14 @@ class LookupTests(unittest.TestCase):
         result = lookup.lookup("123 Main St, Tacoma, WA 98402")
 
         self.assertEqual("reject", result["action"])
+        urlopen.assert_not_called()
+
+    @mock.patch("lookup.urllib.request.urlopen")
+    def test_ordinal_street_without_house_number_does_not_call_geocoder(self, urlopen):
+        result = lookup.lookup("5th Ave Seattle")
+
+        self.assertEqual("reject", result["action"])
+        self.assertIn("No house number", result["message"])
         urlopen.assert_not_called()
 
     @mock.patch("lookup.urllib.request.urlopen")
