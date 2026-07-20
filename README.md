@@ -117,6 +117,25 @@ PARCEL=$(python3 lookup.py --pipe "1817 Morris Ave S, Renton" | python3 -c "impo
 - Python 3.10+ (stdlib only, no dependencies)
 - Network access to `gismaps.kingcounty.gov` (including for PIN verification)
 
+## Development
+
+From a fresh clone, the network-free tests should pass before you try a live
+lookup:
+
+```bash
+git clone https://github.com/chaoz23/king-county-address-to-parcel-number.git
+cd king-county-address-to-parcel-number
+python3 -m unittest discover -s tests -v
+```
+
+Then smoke-test the live King County geocoder with both human-readable and
+pipeline output:
+
+```bash
+python3 lookup.py "1817 Morris Ave S, Renton, WA 98055"
+python3 lookup.py --pipe "1817 Morris Ave S, Renton, WA 98055"
+```
+
 ## License
 
 MIT
