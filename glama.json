@@ -1,0 +1,13 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": [
+    "chaoz23"
+  ],
+  "license": "MIT",
+  "tools": [
+    {
+      "name": "king_county_address_to_parcel",
+      "description": "Convert a King County, WA street address to its 10-digit parcel number — county-namespaced (king:/pierce:), with the permitting jurisdiction derived from the city-limits polygon (not the mailing city), match quality (point / interpolated / street, snapped house number), and parcel-polygon fallback where the locator has no address point. Verifies bare PINs. Read-only."
+    }
+  ]
+}

@@ -3,6 +3,9 @@ name: Tests
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "0 15 * * 1"   # Mondays — surface time-dependent failures even when nothing merges
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,3 +25,5 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run tests
         run: python -m unittest discover -s tests -v
+      - name: Compile sources
+        run: python -m py_compile lookup.py server.py scripts/qc_parcels.py
