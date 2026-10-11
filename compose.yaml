@@ -18,7 +18,7 @@ services:
     environment:
       KCAP_PORT: "8080"
       KCAP_TRUST_PROXY: "1"
-      KCAP_CACHE_TTL: ${KCAP_CACHE_TTL:-900}
+      KCAP_CACHE_TTL: ${KCAP_CACHE_TTL:-86400}   # parcels do not move; a day
       KCAP_RATE_PER_MIN: ${KCAP_RATE_PER_MIN:-30}
       KCAP_GLOBAL_RATE_PER_MIN: ${KCAP_GLOBAL_RATE_PER_MIN:-300}
     logging:

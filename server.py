@@ -39,7 +39,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 import lookup  # noqa: E402
 
-VERSION = "1.1.0"
+VERSION = "1.0.0"
 SERVER_NAME = "king-county-address-to-parcel-number"
 TOOL_NAME = lookup.TOOL_SCHEMA["name"]
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
