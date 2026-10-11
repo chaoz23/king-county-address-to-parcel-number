@@ -1,6 +1,6 @@
 {
   "name": "king_county_address_to_parcel",
-  "description": "Convert a King County, WA street address to its 10-digit parcel number. Returns action=use (exact match), action=pick (ambiguous \u2014 show candidates), action=refine (no match \u2014 try different input), or action=reject (bad input). Also verifies a bare parcel number or 'PIN: XXXXXXXXXX' against the official King County parcel layer. Use this before any tool that requires a King County parcel number.",
+  "description": "Convert a King County, WA street address to its 10-digit parcel number, with the permitting jurisdiction derived from the city-limits polygon (not the mailing city) and the match quality. Returns action=use (exact match), action=pick (ambiguous \u2014 show candidates), action=refine (no match \u2014 try different input), or action=reject (bad input). Also verifies a bare parcel number or 'PIN: XXXXXXXXXX' against the official King County parcel layer. Split cities (Milton, Pacific, Auburn) resolve on the Pierce side too, namespaced 'pierce:'. Use this before any tool that requires a King County parcel number.",
   "input_schema": {
     "type": "object",
     "properties": {
@@ -33,6 +33,53 @@
         ],
         "description": "10-digit King County parcel number. Present when action=use or action=pick."
       },
+      "parcel_id": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "County-namespaced id, e.g. 'king:7222000353' or 'pierce:5985002900' (split cities straddle the county line)."
+      },
+      "county": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "king | pierce | snohomish | kitsap"
+      },
+      "jurisdiction": {
+        "type": "object",
+        "description": "The permitting authority: city (null when unincorporated), basis (city-limits = point inside the city's polygon \u2014 authoritative; geocoder-city = locator's city), unincorporated. The mailing city is NOT the authority: 'Kent, WA' addresses can be unincorporated King County.",
+        "properties": {
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "basis": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "city-limits",
+              "geocoder-city",
+              null
+            ]
+          },
+          "unincorporated": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "address_resolution": {
+        "type": "object",
+        "description": "Match quality: match_type (point = exact address point; interpolated = number placed along the street; street = street only), partial_match, street_number_snapped (the matched house number differs from the input), parcel_basis (address-point | parcel-polygon | nearby-parcel \u2014 the last two mean the PIN came from the parcel layer under/within 40 ft of the point; check candidate_parcels when present)."
+      },
       "matched_address": {
         "type": [
           "string",
@@ -64,7 +111,7 @@
                 "number",
                 "null"
               ],
-              "description": "Geocoder confidence from 0–100."
+              "description": "Geocoder confidence from 0\u2013100."
             },
             "house_number_distance": {
               "type": [

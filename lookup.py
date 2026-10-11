@@ -27,10 +27,28 @@ import sys
 import urllib.request
 import urllib.parse
 
+# King County's four-county locator returns the PIN *and* the county
+# (Subregion) for King/Pierce/Snohomish/Kitsap, so the split cities (Milton,
+# Pacific, Auburn) resolve on both sides of the line.
 GEOCODER_URL = (
     "https://gismaps.kingcounty.gov/arcgis/rest/services"
-    "/Address/KingCo_ParcelAddress_locator/GeocodeServer/findAddressCandidates"
+    "/Address/FourCounty_locator/GeocodeServer/findAddressCandidates"
 )
+# City-limits polygons (all four counties): NAME, UNINC. The mailing city is
+# not the permitting authority — "Kent, WA" addresses sit in unincorporated
+# King County, Vashon has no city at all.
+CITY_LIMITS_URL = (
+    "https://gismaps.kingcounty.gov/arcgis/rest/services"
+    "/Administration/KingCo_AdministrativeAreas/MapServer/2/query"
+)
+STATE_PLANE_WKID = "2926"          # WA State Plane North, US feet
+CITY_LIMITS_NAME_MAP = {"beaux arts": "beaux arts village"}
+# Locator Addr_type → how much of the address was really matched.
+MATCH_TYPE = {"PointAddress": "point", "Subaddress": "point",
+              "Parcel": "point",       # a parcel-address match carries the PIN
+              "StreetAddress": "interpolated", "StreetName": "street",
+              "Locality": "locality"}
+NEARBY_PARCEL_FEET = "40"
 
 ADDRESS_POINTS_URL = (
     "https://gismaps.kingcounty.gov/arcgis/rest/services"
@@ -144,6 +162,139 @@ def make_candidate(
     }
 
 
+def _arcgis_json(url: str, params: dict, timeout: int = 15) -> dict:
+    req = urllib.request.Request(url + "?" + urllib.parse.urlencode(params),
+                                 headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read())
+
+
+def split_house_street(address: str) -> tuple[str, str]:
+    """('1817', 'Morris Ave S') from the first comma-free component."""
+    first = address.split(",")[0].strip()
+    m = HOUSE_NUMBER_RE.search(first)
+    if not m:
+        return "", first
+    house = m.group(0).strip()
+    street = first[m.end():].strip()
+    street = re.sub(r"\s+\d{5}(?:-\d{4})?$", "", street)      # drop a trailing ZIP
+    return house, street
+
+
+def geocode(query: str, max_locations: int) -> list[dict]:
+    data = _arcgis_json(GEOCODER_URL, {
+        "SingleLine": query, "outFields": "*", "outSR": STATE_PLANE_WKID,
+        "maxLocations": max_locations, "f": "json"})
+    return data.get("candidates") or []
+
+
+def candidate_pin(c: dict) -> str:
+    pin = re.sub(r"\D", "", str((c.get("attributes") or {}).get("PIN") or ""))
+    return pin if len(pin) == 10 else ""
+
+
+def candidate_county(c: dict) -> str | None:
+    return ((c.get("attributes") or {}).get("Subregion") or "").strip().lower() or None
+
+
+def candidate_match_type(c: dict) -> str:
+    return MATCH_TYPE.get((c.get("attributes") or {}).get("Addr_type") or "", "none")
+
+
+def usable(c: dict) -> bool:
+    """Score ≥ 80, or an exact address point ≥ 70: the locator docks points
+    for a non-city locality ("Vashon WA" → 75) even when house number and
+    street matched exactly."""
+    score = c.get("score", 0)
+    return score >= 80 or (score >= 70 and candidate_match_type(c) == "point")
+
+
+def nearby_parcel(location: dict) -> tuple[str, list[str], str | None]:
+    """PIN from the parcel polygon under (then within 40 ft of) a point, for
+    interpolated/street matches that carry no PIN — the locator has no
+    address points for some towns (Black Diamond, Beaux Arts, Skykomish).
+    Returns (pin, candidate_pins, basis)."""
+    if location.get("x") is None or location.get("y") is None:
+        return "", [], None
+    for dist in ("0", NEARBY_PARCEL_FEET):
+        try:
+            feats = _arcgis_json(PARCELS_URL, {
+                "geometry": f"{location['x']},{location['y']}",
+                "geometryType": "esriGeometryPoint", "inSR": STATE_PLANE_WKID,
+                "spatialRel": "esriSpatialRelIntersects", "distance": dist,
+                "units": "esriSRUnit_Foot", "outFields": "PIN",
+                "returnGeometry": "false", "f": "json"}).get("features") or []
+        except Exception:
+            feats = []
+        pins = [f["attributes"].get("PIN") for f in feats if (f.get("attributes") or {}).get("PIN")]
+        if pins:
+            basis = "nearby-parcel" if dist != "0" or len(pins) > 1 else "parcel-polygon"
+            return pins[0], pins[:5], basis
+    return "", [], None
+
+
+def jurisdiction_for(location: dict, geocoder_city: str | None) -> dict:
+    """{city, basis, unincorporated} from the city-limits polygon the point
+    falls in; falls back to the locator's city."""
+    out = {"city": None, "basis": None, "unincorporated": None}
+    if location.get("x") is not None and location.get("y") is not None:
+        try:
+            feats = _arcgis_json(CITY_LIMITS_URL, {
+                "geometry": f"{location['x']},{location['y']}",
+                "geometryType": "esriGeometryPoint", "inSR": STATE_PLANE_WKID,
+                "spatialRel": "esriSpatialRelIntersects", "outFields": "NAME,UNINC",
+                "returnGeometry": "false", "f": "json"}).get("features") or []
+        except Exception:
+            feats = []
+        if feats:
+            attrs = feats[0].get("attributes") or {}
+            name = " ".join((attrs.get("NAME") or "").split())
+            key = CITY_LIMITS_NAME_MAP.get(name.lower(), name.lower())
+            out["unincorporated"] = bool(attrs.get("UNINC"))
+            out["city"] = None if out["unincorporated"] else key.title()
+            out["basis"] = "city-limits"
+            return out
+    if geocoder_city:
+        out["city"] = geocoder_city.title()
+        out["basis"] = "geocoder-city"
+        out["unincorporated"] = False
+    return out
+
+
+def resolution_for(c: dict, address: str) -> dict:
+    """Everything an agent needs to trust (or not) a candidate: county,
+    namespaced parcel id, jurisdiction, match quality, parcel basis."""
+    attrs = c.get("attributes") or {}
+    county = candidate_county(c)
+    pin = candidate_pin(c)
+    match_type = candidate_match_type(c)
+    parcel_basis = "address-point" if pin else None
+    candidate_parcels: list[str] = []
+    location = c.get("location") or {}
+    if not pin and county == "king":
+        pin, candidate_parcels, parcel_basis = nearby_parcel(location)
+    house_in, _ = split_house_street(address)
+    house_out = str(attrs.get("AddNum") or "").strip()
+    jur = jurisdiction_for(location, (attrs.get("City") or "").strip() or None)
+    out = {
+        "pin": pin,
+        "parcel_id": f"{county}:{pin}" if county and pin else None,
+        "county": county,
+        "jurisdiction": jur,
+        "address_resolution": {
+            "matched_address": c.get("address"),
+            "score": c.get("score"),
+            "match_type": match_type,
+            "partial_match": match_type != "point",
+            "street_number_snapped": bool(house_in and house_out and house_in != house_out),
+            "parcel_basis": parcel_basis,
+        },
+    }
+    if candidate_parcels and len(candidate_parcels) > 1:
+        out["address_resolution"]["candidate_parcels"] = candidate_parcels
+    return out
+
+
 def pin_verification_unavailable(pin: str, original_input: str, detail: str) -> dict:
     """Return a retryable result without claiming that a PIN is invalid."""
     return {
@@ -211,6 +362,8 @@ def lookup_pin(pin: str, original_input: str) -> dict:
     return {
         "action": "use",
         "parcel_number": verified_pin,
+        "parcel_id": f"king:{verified_pin}",
+        "county": "king",
         "major": major,
         "minor": minor,
         "matched_address": None,
@@ -325,19 +478,18 @@ def lookup(address: str) -> dict:
         rejection["input"] = address
         return rejection
 
-    # Hit the geocoder
-    params = urllib.parse.urlencode({
-        "SingleLine": normalized,
-        "outFields": "*",
-        "maxLocations": 5,
-        "f": "json",
-    })
+    # Hit the geocoder (four-county locator). A miss is retried once as
+    # "<house> <street>, WA": the locator needs a region hint when the query
+    # has none, and returns nothing for a non-city locality plus ZIP
+    # ("13205 Vashon Hwy SW, Vashon, WA 98070" → [] while "…, WA" matches).
     try:
-        req = urllib.request.Request(
-            f"{GEOCODER_URL}?{params}", headers={"User-Agent": "Mozilla/5.0"}
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read())
+        candidates = geocode(normalized, 5)
+        retried = False
+        if not any(usable(c) for c in candidates):
+            house, street = split_house_street(normalized)
+            if house and street:
+                candidates = geocode(f"{house} {street}, WA", 5) or candidates
+                retried = True
     except Exception as e:
         return {
             "action": "refine",
@@ -347,10 +499,33 @@ def lookup(address: str) -> dict:
             "input": address,
         }
 
-    candidates = data.get("candidates", [])
+    good = [c for c in candidates if usable(c)]
+    if retried and good:
+        # Without a city the same street address can exist in several cities
+        # ("220 4th Ave S" is in Kent and Edmonds): keep the top score only if
+        # it is unambiguous, preferring King County — this is a KC tool.
+        top = good[0].get("score", 0)
+        points = [c for c in good if c.get("score", 0) == top and candidate_match_type(c) == "point"]
+        cities = {((c.get("attributes") or {}).get("City") or "", candidate_county(c)) for c in points}
+        if len(cities) > 1:
+            king = [c for c in points if candidate_county(c) == "king"]
+            good = king if len({(c.get("attributes") or {}).get("City") for c in king}) == 1 else []
+            if not good:
+                alts = [make_candidate(c.get("address", ""), candidate_pin(c), score=c.get("score"))
+                        for c in points if candidate_pin(c)]
+                return {
+                    "action": "pick",
+                    "parcel_number": alts[0]["parcel_number"] if alts else None,
+                    "matched_address": None,
+                    "score": None,
+                    "input": address,
+                    "message": "That street address exists in more than one city — add the city.",
+                    "suggestions": ["Add the city or ZIP code"],
+                    "candidates": alts,
+                }
 
-    # --- No geocoder hits: fall back to nearby address search ---
-    if not candidates:
+    # --- No usable hit: fall back to nearby address search ---
+    if not good:
         nearby = find_nearby(normalized)
         if nearby:
             best = nearby[0]
@@ -388,15 +563,23 @@ def lookup(address: str) -> dict:
             "candidates": [],
         }
 
-    # --- Process geocoder results ---
-    best = candidates[0]
+    # --- Process the best usable candidate ---
+    best = good[0]
     score = best.get("score", 0)
-    attrs = best.get("attributes", {})
-    pin = attrs.get("PIN", "")
-    matched = attrs.get("Match_addr", "")
+    matched = best.get("address", "") or (best.get("attributes") or {}).get("Match_addr", "")
+    res = resolution_for(best, normalized)
+    pin = res["pin"]
+    exact = res["address_resolution"]["match_type"] == "point"
+    extras = {"parcel_id": res["parcel_id"], "county": res["county"],
+              "jurisdiction": res["jurisdiction"], "address_resolution": res["address_resolution"]}
+    if res["county"] and res["county"] != "king":
+        extras["note"] = (f"This parcel is in {res['county'].title()} County; the parcel number is "
+                          f"that county's APN, not a King County PIN.")
 
-    # High confidence exact match
-    if score >= 90 and pin and len(pin) == 10:
+    # High confidence: an exact address point carrying its own PIN. An
+    # interpolated match (house number placed along the street — it may not
+    # exist) is a pick even when the parcel polygon under it gave a PIN.
+    if pin and res["address_resolution"]["parcel_basis"] == "address-point" and (exact or score >= 90):
         return {
             "action": "use",
             "parcel_number": pin,
@@ -407,10 +590,11 @@ def lookup(address: str) -> dict:
             "input": address,
             "message": f"Matched: {matched} → parcel {pin}",
             "candidates": [],
+            **extras,
         }
 
-    # Medium confidence — have a PIN but score is lower
-    if score >= 70 and pin and len(pin) == 10:
+    # Medium confidence — have a PIN (possibly from the parcel polygon)
+    if pin:
         return {
             "action": "pick",
             "parcel_number": pin,
@@ -418,20 +602,22 @@ def lookup(address: str) -> dict:
             "score": score,
             "input": address,
             "message": (
-                f"Best match: '{matched}' (confidence {score:.0f}%). "
-                "Verify this is the right property."
+                f"Best match: '{matched}' (confidence {score:.0f}%"
+                + ("; the house number was interpolated and the parcel taken from the polygon under that point"
+                   if res["address_resolution"]["parcel_basis"] in ("parcel-polygon", "nearby-parcel") else "")
+                + "). Verify this is the right property."
             ),
             "candidates": [make_candidate(matched, pin, score=score)],
+            **extras,
         }
 
     # Low confidence or no PIN — gather alternatives
     alts = []
     for c in candidates:
-        ca = c.get("attributes", {})
-        cp = ca.get("PIN", "")
-        cm = ca.get("Match_addr", "")
+        cp = candidate_pin(c)
+        cm = c.get("address", "") or (c.get("attributes") or {}).get("Match_addr", "")
         cs = c.get("score", 0)
-        if cp and len(cp) == 10 and cs >= 50:
+        if cp and cs >= 50:
             alts.append(make_candidate(cm, cp, score=cs))
 
     if alts:
@@ -443,6 +629,7 @@ def lookup(address: str) -> dict:
             "input": address,
             "message": f"Low confidence. Best guess: {alts[0]['address']}. Did you mean one of these?",
             "candidates": alts,
+            **extras,
         }
 
     # Nothing usable
@@ -457,6 +644,7 @@ def lookup(address: str) -> dict:
             "Make sure the city is in King County",
         ],
         "candidates": nearby,
+        **extras,
     }
 
 
@@ -465,11 +653,14 @@ EXIT_CODES = {"use": 0, "pick": 1, "refine": 1, "reject": 2}
 TOOL_SCHEMA = {
     "name": "king_county_address_to_parcel",
     "description": (
-        "Convert a King County, WA street address to its 10-digit parcel number. "
+        "Convert a King County, WA street address to its 10-digit parcel number, "
+        "with the permitting jurisdiction derived from the city-limits polygon "
+        "(not the mailing city) and the match quality. "
         "Returns action=use (exact match), action=pick (ambiguous — show candidates), "
         "action=refine (no match — try different input), or action=reject (bad input). "
         "Also verifies a bare parcel number or 'PIN: XXXXXXXXXX' against the "
-        "official King County parcel layer. "
+        "official King County parcel layer. Split cities (Milton, Pacific, Auburn) "
+        "resolve on the Pierce side too, namespaced 'pierce:'. "
         "Use this before any tool that requires a King County parcel number."
     ),
     "input_schema": {
@@ -503,6 +694,24 @@ TOOL_SCHEMA = {
             "parcel_number": {
                 "type": ["string", "null"],
                 "description": "10-digit King County parcel number. Present when action=use or action=pick.",
+            },
+            "parcel_id": {
+                "type": ["string", "null"],
+                "description": "County-namespaced id, e.g. 'king:7222000353' or 'pierce:5985002900' (split cities straddle the county line).",
+            },
+            "county": {"type": ["string", "null"], "description": "king | pierce | snohomish | kitsap"},
+            "jurisdiction": {
+                "type": "object",
+                "description": "The permitting authority: city (null when unincorporated), basis (city-limits = point inside the city's polygon — authoritative; geocoder-city = locator's city), unincorporated. The mailing city is NOT the authority: 'Kent, WA' addresses can be unincorporated King County.",
+                "properties": {
+                    "city": {"type": ["string", "null"]},
+                    "basis": {"type": ["string", "null"], "enum": ["city-limits", "geocoder-city", None]},
+                    "unincorporated": {"type": ["boolean", "null"]},
+                },
+            },
+            "address_resolution": {
+                "type": "object",
+                "description": "Match quality: match_type (point = exact address point; interpolated = number placed along the street; street = street only), partial_match, street_number_snapped (the matched house number differs from the input), parcel_basis (address-point | parcel-polygon | nearby-parcel — the last two mean the PIN came from the parcel layer under/within 40 ft of the point; check candidate_parcels when present).",
             },
             "matched_address": {
                 "type": ["string", "null"],

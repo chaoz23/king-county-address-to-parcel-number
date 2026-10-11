@@ -1,0 +1,16 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.chaoz23/king-county-address-to-parcel-number",
+  "description": "King County, WA address \u2192 parcel number, with polygon-derived jurisdiction and match quality.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/chaoz23/king-county-address-to-parcel-number",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://parcels-api.secondlandings.ai/mcp"
+    }
+  ]
+}

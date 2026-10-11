@@ -1,0 +1,32 @@
+name: Parcel QC
+
+# Weekly live conformance: every King County city's QC address must resolve to
+# a parcel in the right jurisdiction. Commits qc_health.json; never fails the
+# build — outages are information.
+
+on:
+  schedule:
+    - cron: "30 14 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  qc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Live parcel QC
+        continue-on-error: true
+        run: python scripts/qc_parcels.py --json qc_health.json
+      - name: Commit if changed
+        run: |
+          git config user.name "parcel-qc[bot]"
+          git config user.email "parcel-qc@users.noreply.github.com"
+          git add qc_health.json
+          if git diff --cached --quiet; then echo "no change"; else
+            git commit -m "chore: weekly parcel QC ($(date -u +%F))"; git push; fi
