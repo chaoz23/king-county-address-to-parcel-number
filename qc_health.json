@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-19T20:01:34Z",
+ "checked_at": "2026-10-26T20:01:40Z",
  "tally": {
   "PASS": 40,
   "FAIL": 0
@@ -12,7 +12,7 @@
    "parcel_id": "king:9543000225",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.6,
+   "elapsed_s": 0.5,
    "outcome": "PASS",
    "fails": []
   },
@@ -23,7 +23,7 @@
    "parcel_id": "king:7816200060",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.6,
+   "elapsed_s": 0.5,
    "outcome": "PASS",
    "fails": []
   },
@@ -34,7 +34,7 @@
    "parcel_id": "king:0629000510",
    "basis": "nearby-parcel",
    "match": "interpolated",
-   "elapsed_s": 1.1,
+   "elapsed_s": 1.0,
    "outcome": "PASS",
    "fails": []
   },
@@ -56,7 +56,7 @@
    "parcel_id": "king:1421069074",
    "basis": "nearby-parcel",
    "match": "interpolated",
-   "elapsed_s": 1.0,
+   "elapsed_s": 0.9,
    "outcome": "PASS",
    "fails": []
   },
@@ -122,7 +122,7 @@
    "parcel_id": "king:0822049174",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.6,
+   "elapsed_s": 0.5,
    "outcome": "PASS",
    "fails": []
   },
@@ -207,10 +207,10 @@
    "city": "kirkland",
    "address": "13027 NE 113th St, Kirkland, WA 98034",
    "action": "pick",
-   "parcel_id": "king:5487300080",
+   "parcel_id": "king:5487300070",
    "basis": "nearby-parcel",
    "match": "interpolated",
-   "elapsed_s": 1.0,
+   "elapsed_s": 0.9,
    "outcome": "PASS",
    "fails": []
   },
@@ -232,7 +232,7 @@
    "parcel_id": "king:1622069126",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.6,
    "outcome": "PASS",
    "fails": []
   },
@@ -298,7 +298,7 @@
    "parcel_id": "king:1023089010",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.4,
    "outcome": "PASS",
    "fails": []
   },
@@ -331,7 +331,7 @@
    "parcel_id": "king:7222000353",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.6,
    "outcome": "PASS",
    "fails": []
   },
@@ -364,7 +364,7 @@
    "parcel_id": "king:1985200495",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.4,
+   "elapsed_s": 0.6,
    "outcome": "PASS",
    "fails": []
   },
@@ -386,7 +386,7 @@
    "parcel_id": "king:7807800465",
    "basis": "nearby-parcel",
    "match": "interpolated",
-   "elapsed_s": 0.9,
+   "elapsed_s": 1.0,
    "outcome": "PASS",
    "fails": []
   },
@@ -397,7 +397,7 @@
    "parcel_id": "king:7849202040",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.6,
    "outcome": "PASS",
    "fails": []
   },
