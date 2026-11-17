@@ -1,8 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.chaoz23/king-county-address-to-parcel-number",
+  "title": "King County Address to Parcel",
   "description": "King County, WA address \u2192 parcel number, with polygon-derived jurisdiction and match quality.",
   "version": "1.0.0",
+  "websiteUrl": "https://secondlandings.com/tools/",
+  "icons": [
+    {
+      "src": "https://secondlandings.com/assets/mcp/parcels.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "any"
+      ]
+    }
+  ],
   "repository": {
     "url": "https://github.com/chaoz23/king-county-address-to-parcel-number",
     "source": "github"
