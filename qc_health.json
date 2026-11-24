@@ -1,8 +1,8 @@
 {
- "checked_at": "2026-11-16T23:26:49Z",
+ "checked_at": "2026-11-24T01:45:29Z",
  "tally": {
-  "PASS": 40,
-  "FAIL": 0
+  "PASS": 38,
+  "FAIL": 2
  },
  "cities": [
   {
@@ -12,7 +12,7 @@
    "parcel_id": "king:9543000225",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.9,
    "outcome": "PASS",
    "fails": []
   },
@@ -23,20 +23,23 @@
    "parcel_id": "king:7816200060",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.6,
+   "elapsed_s": 0.8,
    "outcome": "PASS",
    "fails": []
   },
   {
    "city": "beaux arts village",
    "address": "10550 SE 27th St, Beaux Arts Village, WA 98004",
-   "action": "pick",
-   "parcel_id": "king:0629000510",
-   "basis": "nearby-parcel",
+   "action": "refine",
+   "parcel_id": null,
+   "basis": null,
    "match": "interpolated",
-   "elapsed_s": 1.0,
-   "outcome": "PASS",
-   "fails": []
+   "elapsed_s": 2.0,
+   "outcome": "FAIL",
+   "fails": [
+    "action=refine: Could not resolve '10550 SE 27th St, Beaux Arts Village, WA 98004' to a parcel. ",
+    "parcel_number=''"
+   ]
   },
   {
    "city": "bellevue",
@@ -45,7 +48,7 @@
    "parcel_id": "king:6600750005",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.8,
    "outcome": "PASS",
    "fails": []
   },
@@ -56,7 +59,7 @@
    "parcel_id": "king:1421069074",
    "basis": "nearby-parcel",
    "match": "interpolated",
-   "elapsed_s": 1.0,
+   "elapsed_s": 1.9,
    "outcome": "PASS",
    "fails": []
   },
@@ -67,7 +70,7 @@
    "parcel_id": "king:0967000265",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.8,
    "outcome": "PASS",
    "fails": []
   },
@@ -78,7 +81,7 @@
    "parcel_id": "king:1214200000",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -89,7 +92,7 @@
    "parcel_id": "king:8658302200",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.8,
    "outcome": "PASS",
    "fails": []
   },
@@ -100,7 +103,7 @@
    "parcel_id": "king:8086000380",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.8,
    "outcome": "PASS",
    "fails": []
   },
@@ -111,7 +114,7 @@
    "parcel_id": "king:1796330040",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.8,
    "outcome": "PASS",
    "fails": []
   },
@@ -122,7 +125,7 @@
    "parcel_id": "king:0822049174",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -133,7 +136,7 @@
    "parcel_id": "king:2130700130",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -144,7 +147,7 @@
    "parcel_id": "king:6353000005",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -155,7 +158,7 @@
    "parcel_id": "king:9265000290",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -166,7 +169,7 @@
    "parcel_id": "king:1925059041",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.6,
    "outcome": "PASS",
    "fails": []
   },
@@ -177,7 +180,7 @@
    "parcel_id": "king:2724069035",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -188,7 +191,7 @@
    "parcel_id": "king:0114100495",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -199,7 +202,7 @@
    "parcel_id": "king:7759800010",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -210,7 +213,7 @@
    "parcel_id": "king:5487300080",
    "basis": "nearby-parcel",
    "match": "interpolated",
-   "elapsed_s": 1.0,
+   "elapsed_s": 1.4,
    "outcome": "PASS",
    "fails": []
   },
@@ -221,7 +224,7 @@
    "parcel_id": "king:4019301663",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -232,7 +235,7 @@
    "parcel_id": "king:1622069126",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.8,
    "outcome": "PASS",
    "fails": []
   },
@@ -243,20 +246,23 @@
    "parcel_id": "king:5427300050",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.4,
+   "elapsed_s": 0.8,
    "outcome": "PASS",
    "fails": []
   },
   {
    "city": "mercer island",
    "address": "2825 76th Ave SE, Mercer Island, WA 98040",
-   "action": "pick",
-   "parcel_id": "king:5453800005",
-   "basis": "nearby-parcel",
+   "action": "refine",
+   "parcel_id": null,
+   "basis": null,
    "match": "interpolated",
-   "elapsed_s": 0.9,
-   "outcome": "PASS",
-   "fails": []
+   "elapsed_s": 1.7,
+   "outcome": "FAIL",
+   "fails": [
+    "action=refine: Could not resolve '2825 76th Ave SE, Mercer Island, WA 98040' to a parcel. Geoco",
+    "parcel_number=''"
+   ]
   },
   {
    "city": "milton",
@@ -265,7 +271,7 @@
    "parcel_id": "pierce:5985001690",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.8,
    "outcome": "PASS",
    "fails": []
   },
@@ -276,7 +282,7 @@
    "parcel_id": "king:2824059144",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.4,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -287,7 +293,7 @@
    "parcel_id": "king:7766200020",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -298,7 +304,7 @@
    "parcel_id": "king:1023089010",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.9,
    "outcome": "PASS",
    "fails": []
   },
@@ -309,7 +315,7 @@
    "parcel_id": "king:3599600060",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -320,7 +326,7 @@
    "parcel_id": "king:0225059115",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.8,
    "outcome": "PASS",
    "fails": []
   },
@@ -331,7 +337,7 @@
    "parcel_id": "king:7222000353",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -342,7 +348,7 @@
    "parcel_id": "king:8691301385",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -353,7 +359,7 @@
    "parcel_id": "king:3323049027",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -364,7 +370,7 @@
    "parcel_id": "king:1985200495",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
@@ -375,7 +381,7 @@
    "parcel_id": "king:1826049268",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.6,
    "outcome": "PASS",
    "fails": []
   },
@@ -386,7 +392,7 @@
    "parcel_id": "king:7807800465",
    "basis": "nearby-parcel",
    "match": "interpolated",
-   "elapsed_s": 0.9,
+   "elapsed_s": 1.4,
    "outcome": "PASS",
    "fails": []
   },
@@ -397,7 +403,7 @@
    "parcel_id": "king:7849202040",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.8,
    "outcome": "PASS",
    "fails": []
   },
@@ -408,7 +414,7 @@
    "parcel_id": "king:3597000282",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.5,
+   "elapsed_s": 0.6,
    "outcome": "PASS",
    "fails": []
   },
@@ -419,18 +425,18 @@
    "parcel_id": "king:4249400270",
    "basis": "address-point",
    "match": "point",
-   "elapsed_s": 0.8,
+   "elapsed_s": 0.7,
    "outcome": "PASS",
    "fails": []
   },
   {
    "city": "yarrow point",
    "address": "9000 NE Points Dr, Yarrow Point, WA 98004",
-   "action": "use",
-   "parcel_id": "king:0540100110",
-   "basis": "address-point",
-   "match": "point",
-   "elapsed_s": 0.5,
+   "action": "pick",
+   "parcel_id": "king:0540100090",
+   "basis": "nearby-parcel",
+   "match": "interpolated",
+   "elapsed_s": 1.3,
    "outcome": "PASS",
    "fails": []
   },
